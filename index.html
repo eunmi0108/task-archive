@@ -283,9 +283,72 @@ body{font-family:'Noto Sans KR','Inter',sans-serif;background:var(--bg);color:va
   .form-row{flex-direction:column;gap:12px;}
   .page-title{font-size:24px;}
 }
+
+/* PASSWORD GATE */
+.pw-gate{
+  position:fixed;top:0;left:0;right:0;bottom:0;z-index:9999;
+  background:linear-gradient(135deg,#c9d6e8 0%,#e8dff0 50%,#fce4ec 100%);
+  display:flex;align-items:center;justify-content:center;
+}
+.pw-box{
+  background:var(--card);border-radius:24px;padding:48px 40px;width:400px;max-width:90vw;
+  box-shadow:0 25px 60px rgba(0,0,0,0.12);text-align:center;
+}
+.pw-box .pw-icon{font-size:48px;margin-bottom:16px;}
+.pw-box h2{font-size:22px;font-weight:700;margin-bottom:6px;}
+.pw-box p{font-size:14px;color:var(--sub);margin-bottom:28px;}
+.pw-input-wrap{
+  display:flex;align-items:center;gap:8px;
+  border:2px solid var(--border);border-radius:12px;padding:10px 16px;
+  transition:border 0.2s;margin-bottom:12px;
+}
+.pw-input-wrap:focus-within{border-color:var(--accent);}
+.pw-input-wrap input{
+  border:none;outline:none;flex:1;font-family:inherit;font-size:15px;
+  background:transparent;
+}
+.pw-input-wrap .pw-toggle{
+  background:none;border:none;cursor:pointer;font-size:18px;color:var(--sub);
+}
+.pw-submit{
+  width:100%;padding:12px;border:none;border-radius:12px;
+  background:var(--text);color:#fff;font-family:inherit;font-size:15px;
+  font-weight:600;cursor:pointer;transition:opacity 0.2s;margin-top:4px;
+}
+.pw-submit:hover{opacity:0.85;}
+.pw-error{
+  color:var(--red);font-size:13px;font-weight:500;margin-top:10px;
+  display:none;
+}
+.pw-error.show{display:block;}
+.pw-remember{
+  display:flex;align-items:center;justify-content:center;gap:6px;
+  font-size:13px;color:var(--sub);margin-top:14px;cursor:pointer;
+}
+.pw-remember input{cursor:pointer;}
 </style>
 </head>
 <body>
+
+<!-- PASSWORD GATE -->
+<div class="pw-gate" id="pwGate">
+  <div class="pw-box">
+    <div class="pw-icon">🔐</div>
+    <h2>Task Archive</h2>
+    <p>이 페이지는 비밀번호로 보호되어 있습니다.</p>
+    <form onsubmit="checkPassword(event)">
+      <div class="pw-input-wrap">
+        <input type="password" id="pwInput" placeholder="비밀번호를 입력하세요" autocomplete="off" autofocus>
+        <button type="button" class="pw-toggle" onclick="togglePwVisibility()">👁️</button>
+      </div>
+      <button type="submit" class="pw-submit">입장하기</button>
+    </form>
+    <div class="pw-error" id="pwError">비밀번호가 올바르지 않습니다.</div>
+    <label class="pw-remember">
+      <input type="checkbox" id="pwRemember"> 이 브라우저에서 기억하기
+    </label>
+  </div>
+</div>
 
 <!-- HEADER -->
 <div class="header">
@@ -1003,7 +1066,48 @@ function showSyncResult(type,msg){
 
 document.getElementById('dataSyncModal').addEventListener('click',e=>{if(e.target===e.currentTarget)closeDataSync();});
 
-init();
+// PASSWORD PROTECTION
+const PW_HASH='cd8a38bb50da70af412c97ef99259dadeb4de4e729379fac75ad468aeea2ebed';
+const PW_SESSION_KEY='ta_auth';
+
+async function sha256(text){
+  const buf=await crypto.subtle.digest('SHA-256',new TextEncoder().encode(text));
+  return Array.from(new Uint8Array(buf)).map(b=>b.toString(16).padStart(2,'0')).join('');
+}
+
+async function checkPassword(e){
+  e.preventDefault();
+  const pw=document.getElementById('pwInput').value;
+  const hash=await sha256(pw);
+  if(hash===PW_HASH){
+    document.getElementById('pwGate').style.display='none';
+    if(document.getElementById('pwRemember').checked){
+      localStorage.setItem(PW_SESSION_KEY,hash);
+    } else {
+      sessionStorage.setItem(PW_SESSION_KEY,hash);
+    }
+    init();
+  } else {
+    document.getElementById('pwError').classList.add('show');
+    document.getElementById('pwInput').value='';
+    document.getElementById('pwInput').focus();
+    setTimeout(()=>document.getElementById('pwError').classList.remove('show'),3000);
+  }
+}
+
+function togglePwVisibility(){
+  const inp=document.getElementById('pwInput');
+  inp.type=inp.type==='password'?'text':'password';
+}
+
+// Check if already authenticated
+(function(){
+  const saved=localStorage.getItem(PW_SESSION_KEY)||sessionStorage.getItem(PW_SESSION_KEY);
+  if(saved===PW_HASH){
+    document.getElementById('pwGate').style.display='none';
+    init();
+  }
+})();
 </script>
 </body>
 </html>
